@@ -1,84 +1,267 @@
-# shift-calendar(日本語版)
-6人の出勤記録を管理するためのシンプルなWebシフトカレンダーアプリです。PHP、HTML、JavaScriptで作成されています。日本の祝日、出勤管理、月次出勤集計に対応しています。
+# シフト入力カレンダー（shift.php）
+
+PHP 1ファイルだけで動く、少人数スタッフ（既定6名）向けの出勤シフト入力・集計ツールです。
+データベース・インストール作業・外部ライブラリは不要で、FTP等でアップロードするだけで使えます。
 
 ---
 
-# 日本語README概要
+## できること
 
-```markdown
-# Shift Calendar
+- 人物（縦）× 日付（横）のチェックボックスで出勤/非出勤を入力する
+- 勤怠データを `shift_data.json` に自動保存する（DB不要）
+- 祝日・日曜・土曜を色分けして表示する
+- 出勤回数を以下の2パターンで自動集計する
+  - 表示期間全体（前月20日〜当月末日）
+  - 給与計算用期間（前月20日〜当月20日）
+- スマホでも操作できるよう、レスポンシブ表示になる
 
-6人分の出勤記録を管理するためのシンプルなWebシフトカレンダーアプリです。
-
-このアプリは、月ごとのシフト作成、出勤確認、出勤回数集計、日本の祝日や土日の色分けに対応しています。
-
-## 機能
-
-- 前月20日から入力月の末日までを表示
-- 日本の土日と祝日を色分け
-- 6人分の出勤チェック欄
-- 人物を縦、日付を横にした表示
-- 表示期間内の出勤回数集計
-- 前月20日から当月20日までの出勤回数集計
-- `shift_data.json`に保存
-
-## 動作条件
-
-- PHP 7.4以上、またはPHP 8.x
-- データ保存用に書き込み可能なディレクトリ
-- UTF-8ファイルエンコーディング
+---
 
 ## ファイル構成
 
-- `index.php` または `shift.php`: 本体アプリ
-- `shift_data.json`: 出勤データ保存用
-- `holiday_cache.json`: 祝日キャッシュ用
+| ファイル | 説明 |
+| --- | --- |
+| `shift.php` | 本体。表示・入力・保存・集計をすべてこれ1ファイルで行う |
+| `shift_data.json` | 勤怠データの保存ファイル。初回保存時に自動作成される |
+| `holiday_cache.json` | 祝日APIのキャッシュ。自動作成される。削除しても再取得されるだけなので問題ない |
 
-## 使い方
+`shift.php` 以外のファイルは手で作る必要はありません。
 
-1. アプリのファイルをUTF-8で保存します。
-2. PHPが動作するサーバー環境にファイルを配置します。
-3. ローカル開発サーバーを起動します。
+---
 
-```bash
-php -S 127.0.0.1:8000
+## 動作環境
 
-# shift-calendar
-A simple web-based shift calendar app for managing 6-person attendance records. Built with PHP, HTML, and JavaScript. It supports Japanese holidays, attendance tracking, and monthly attendance totals.
+- PHP 7.0 以上（7.4 / 8.x 推奨）
+- PHPが動くレンタルサーバー・エックスサーバー・さくらインターネット・XAMPP など
+- `shift.php` と同じフォルダに**書き込み権限**があること
+  - レンタルサーバーでは `755`、だめなら `775` / `707` にしてください
 
-# Shift Calendar
+---
 
-A simple web-based shift calendar application for managing attendance records for 6 people.
+## 導入手順
 
-This app is useful for creating monthly shift schedules, checking attendance, viewing attendance counts, and supporting Japanese public holidays and weekend coloring.
+1. `shift.php` をアップロードする
+2. 必要に応じてファイル冒頭の `$people` を自分のスタッフ名に書き換える
+3. ブラウザからURLを開く（例: `https://example.com/shift/shift.php`）
+4. 年・月を選んで「表示」をクリック
+5. 出勤するマスにチェックを入れ、「保存」を押す
 
-## Features
+初回は `shift_data.json` がまだ無いので、すべて未チェックの状態で表示されます。
+保存ボタンを押すとファイルが自動作成されます。
 
-- Displays from the 20th of the previous month to the end of the selected month
-- Color-coded weekends and Japanese public holidays
-- Attendance checkboxes for 6 people
-- Vertical people list with horizontal date columns
-- Attendance totals for the displayed period
-- Attendance totals from the 20th of the previous month to the 20th of the current month
-- Saves data to `shift_data.json`
+---
 
-## Requirements
+## 基本的な使い方
 
-- PHP 7.4 or later, or PHP 8.x
-- A writable directory for saving data
-- UTF-8 file encoding
+### 年月の切り替え
 
-## Files
+上部の「年」「月」を選んで「表示」を押します。
+「今月へ」ボタンを押すと現在の月に戻ります。
 
-- `index.php` or `shift.php`: main application file
-- `shift_data.json`: saved attendance data
-- `holiday_cache.json`: cached Japanese holiday data
+URLに直接引数を与えることもできます。
 
-## Usage
+```text
+shift.php?year=2026&month=10
+```
 
-1. Save the application files with UTF-8 encoding.
-2. Place the application in a directory served by a PHP server.
-3. Run a local PHP development server:
+### 出勤の入力
 
-```bash
-php -S 127.0.0.1:8000
+チェックを入れると出勤、空欄だと非出勤です。
+**チェックしただけでは保存されません。** 必ず下の「保存」ボタンを押してください。
+
+- 誤って画面を閉じそうになったときは確認ダイアログが出ます
+- 保存ボタンは二重押ししないよう自動で無効化されます
+
+### 出勤回数
+
+ページ下部に一覧が出ます。
+
+| 項目 | 集計範囲 |
+| --- | --- |
+| 表示期間内の出勤回数 | 前月20日〜当月末日 |
+| 前月20日から当月20日までの出勤回数 | 前月20日〜当月20日 |
+
+「当月20日締め」の給与計算には右側の数値を使ってください。
+
+---
+
+## 設定の変更
+
+ファイル冒頭に設定ブロックがあります。
+
+```php
+$people = array(
+    0 => '山田 太郎',
+    1 => '佐藤 一郎',
+    2 => '鈴木 二郎',
+    3 => '高橋 三郎',
+    4 => '伊藤 四郎',
+    5 => '松本 五郎',
+);
+```
+
+名前を変えたり、人数を増減したりしてください。6人に限らず、増やしても減らしても動きます。
+
+### ⚠ 注意：キー番号はIDです
+
+配列のキー（`0`, `1`, `2` …）は内部IDとして `shift_data.json` に保存されます。
+
+- 名前だけ書き換える → データはそのままでOK
+- キー番号を変える・消す → そのIDの過去データと紐づかなくなる
+
+人を増やすときは既存の番号を潰さず、末尾に `6 => '氏名'` のように追加してください。
+
+### 祝日APIのON / OFF
+
+```php
+$useRemoteHolidays = true;
+```
+
+外部の祝日API（holidays-jp.github.io）を使うかどうかの切替です。
+ネット接続が無い環境や警告が出る環境では `false` にしてください。
+その場合はコード内の静的祝日リストのみで色分けされます。
+
+---
+
+## 祝日表示について
+
+2段階で判定しています。
+
+1. `shift.php` に内蔵された静的祝日リスト（2024〜2026年分）
+2. 外部APIから取得した祝日（成功した場合 `holiday_cache.json` に30日分キャッシュ）
+
+- オフラインでもキャッシュや静的リストで最低限の色分けは可能です
+- 祝日が反映されない場合は、`holiday_cache.json` を削除してから再読み込みしてください
+- 内蔵リストへ追加したい場合は `staticHolidays()` / `knownStaticHolidays()` の配列に `'YYYY-MM-DD'` を追記してください
+
+---
+
+## 保存データの形式
+
+`shift_data.json` は次のようなJSONです。手で編集・バックアップもできます。
+
+```json
+{
+  "2026-10-01": { "0": true, "3": true },
+  "2026-10-03": { "1": true }
+}
+```
+
+- キー = 日付
+- 値 = 出勤している人物のIDだけ保存
+- 誰も出勤していない日は保存されません
+
+バックアップは `shift_data.json` をコピーするだけです。
+
+---
+
+## スマホでの見え方
+
+モバイルでは次のように表示されます。
+
+- 画面幅に応じて日付列が狭くなり、横スクロールで操作する
+- 名前列は左に固定される（横スクロールしても消えない）
+- チェックボックスはタップしやすい大きさになる
+- 保存ボタンは画面下に固定される
+- 年月フォームは大きく表示される
+
+見やすいように、スマホでは横向きでの利用をおすすめします。
+
+---
+
+## 見た目のカスタマイズ
+
+CSSはファイル内の `<style>` タグの冒頭にまとまっています。
+
+```css
+:root {
+  --accent: #1d4ed8;
+  --success: #16a34a;
+  --holiday: #fff7cc;
+  --sun: #ffe4e6;
+  --sat: #dbeafe;
+}
+```
+
+色を変えたいだけなら、この変数を書き換えるだけで全体に反映されます。
+
+- セルのサイズ: `min-width` / `min-height`
+- スマホ用の列幅: `@media (max-width: 767px)` 以下
+- 配色: 上記のCSS変数
+
+---
+
+## トラブルシューティング
+
+| 症状 | 対処 |
+| --- | --- |
+| 「保存に失敗しました」と出る | フォルダに書き込み権限を付ける（755 → 775 など）。`shift_data.json` があればファイルの権限も確認する |
+| 保存したのに反映されない | ブラウザのキャッシュを消して再読み込み。ファイルが作られているかFTPで確認 |
+| 保存したデータが消えた | `shift_data.json` を復元する。フォルダを移行・消去すると消えます |
+| 祝日が色分けされない | `holiday_cache.json` を削除。`$useRemoteHolidays` が `false` になっていないか確認。祝日APIに無い日は静的リストへ追加 |
+| 文字化けする | `shift.php` を **UTF-8（BOMなし）** で保存する |
+| 過去データと名前がずれた | 配列のキー番号が変わっていませんか。キーはIDとして扱われます |
+| 特定の人だけ反映されない | 配列のキーが重複・欠損していませんかがん |
+| 月をまたいで入力したい | 表示期間はその月の前月20日まで含まれるので、1か月分入力すれば前月20日以降はカバーされます |
+
+---
+
+## セキュリティ上の注意
+
+このツールにはログイン機能が無く、URLを知っている人は誰でもアクセス・編集できます。
+
+公開サーバーで使う場合は、次を強くおすすめします。
+
+- サーバーのBasic認証をフォルダに設定する
+- IP制限をかける
+- 社内ネットワーク・VPN内でのみ公開する
+
+---
+
+## よくある変更
+
+### 集計期間を変えたい
+
+`buildRange()` / `buildPeriods()` の20日という部分を変更してください。
+
+```php
+$start = $prev->setDate(..., 20);  // 開始日（前月の何日か）
+$payEnd = $first->setDate($year, $month, 20);  // 締日（当月の何日か）
+```
+
+### 表示範囲を変えたい
+
+同じ関数の `$start` / `$end` を変更します。
+表示期間を変えると「表示期間内の出勤回数」の意味も変わるので注意してください。
+
+### 出勤以外に色を付けたい（例: 遅刻・休）
+
+現在はチェック＝出勤の2値のみです。
+複数状態にしたい場合は、チェックボックスではなくセレクトやセルクリック方式への変更が必要になります。
+
+---
+
+## バージョンメモ
+
+### レスポンシブ対応版の変更点
+
+従来の `shift.php` V2 から、次の変更が入っています。
+
+- 表示をカード型レイアウトに整理
+- 月選択をセレクトボックス化（タップしやすい）
+- 「今月へ」ショートカット追加
+- 祝日・土曜・日曜の凡例表示
+- チェックボックスをタップしやすいサイズに拡大し、チェックマークを描画
+- 列の最小幅を端末幅に応じて変更（スマホでは狭くする）
+- 保存ボタンをスマホで画面下に固定
+- 保存中はボタンを無効化し「保存中...」表示
+- 勤怠データファイルの読み書きロジックを関数化し、編集しやすく整理
+
+既存の `shift_data.json` はそのまま引き継げます。
+
+---
+
+## ライセンス
+
+自由に改造・再配布して構いません（クレジット表記は任意）。
+必要に応じて商用・社内利用ともに自由に利用してください。
